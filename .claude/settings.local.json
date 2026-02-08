@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(net start MySQL80)",
+      "Bash(net start MySQL)",
+      "Bash(sc query:*)",
+      "Bash(powershell \"Get-Service | Where-Object {$_DisplayName -like ''*mysql*''}\")",
+      "Bash(mysql:*)",
+      "Bash(where:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(java -version:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /F /PID 34044\")",
+      "Bash(npx kill-port:*)",
+      "Bash(timeout /t:*)"
+    ]
+  }
+}

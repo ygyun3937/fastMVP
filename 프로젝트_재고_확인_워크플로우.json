@@ -1,0 +1,272 @@
+{
+  "name": "프로젝트 수주 재고 확인 자동화",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "신규 프로젝트 장비 요청",
+        "formDescription": "새로운 프로젝트 수주 시 필요한 장비를 입력하면 자동으로 재고를 확인합니다.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "프로젝트ID",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "예: PRJ-2025-001"
+            },
+            {
+              "fieldLabel": "프로젝트명",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "예: 구씨 마케팅 교육"
+            },
+            {
+              "fieldLabel": "고객사",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "예: 구씨 마케팅"
+            },
+            {
+              "fieldLabel": "담당자",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "예: 김담당"
+            },
+            {
+              "fieldLabel": "담당자이메일",
+              "fieldType": "email",
+              "requiredField": true,
+              "placeholder": "manager@company.com"
+            },
+            {
+              "fieldLabel": "필요장비목록",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "품목코드,수량 형식으로 입력\n예:\nEQ-001,15\nEQ-002,3\nEQ-003,5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "id": "form-trigger-001",
+      "name": "프로젝트 정보 입력"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 필요장비목록 텍스트를 파싱하여 배열로 변환\nconst equipmentText = $input.item.json['필요장비목록'];\nconst lines = equipmentText.split('\\n').filter(line => line.trim());\n\nconst equipmentList = lines.map(line => {\n  const [code, qty] = line.split(',').map(s => s.trim());\n  return {\n    equipment_code: code,\n    required_qty: parseInt(qty)\n  };\n});\n\n// 프로젝트 기본 정보\nconst projectInfo = {\n  project_id: $input.item.json['프로젝트ID'],\n  project_name: $input.item.json['프로젝트명'],\n  client: $input.item.json['고객사'],\n  manager: $input.item.json['담당자'],\n  manager_email: $input.item.json['담당자이메일'],\n  order_date: new Date().toISOString().split('T')[0]\n};\n\n// 각 장비에 프로젝트 정보 추가\nreturn equipmentList.map(eq => ({\n  json: {\n    ...projectInfo,\n    ...eq\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "parse-equipment-001",
+      "name": "장비목록 파싱"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "YOUR_PROJECT_SHEET_ID",
+        "sheetName": "프로젝트목록",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "프로젝트ID": "={{ $json.project_id }}",
+            "프로젝트명": "={{ $json.project_name }}",
+            "고객사": "={{ $json.client }}",
+            "수주일": "={{ $json.order_date }}",
+            "상태": "진행중",
+            "담당자": "={{ $json.manager }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 200],
+      "id": "save-project-001",
+      "name": "프로젝트 정보 저장"
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": "YOUR_INVENTORY_SHEET_ID",
+        "sheetName": "장비재고",
+        "lookupColumn": "품목코드",
+        "lookupValue": "={{ $json.equipment_code }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 400],
+      "id": "lookup-inventory-001",
+      "name": "재고 조회"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 재고 부족 계산\nconst required = $input.item.json.required_qty;\nconst current = parseInt($input.item.json['현재수량']) || 0;\nconst minQty = parseInt($input.item.json['최소수량']) || 0;\nconst equipmentName = $input.item.json['품목명'];\nconst manager = $input.item.json['담당자'];\n\nconst shortage = Math.max(0, required - current);\nconst allocated = Math.min(required, current);\nconst status = shortage > 0 ? '부족' : '충분';\n\nreturn {\n  json: {\n    ...$input.item.json,\n    equipment_name: equipmentName,\n    current_qty: current,\n    min_qty: minQty,\n    allocated_qty: allocated,\n    shortage_qty: shortage,\n    status: status,\n    equipment_manager: manager,\n    alert_needed: shortage > 0\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "id": "calc-shortage-001",
+      "name": "재고 부족 계산"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "YOUR_PROJECT_SHEET_ID",
+        "sheetName": "프로젝트별필요장비",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "프로젝트ID": "={{ $json.project_id }}",
+            "품목코드": "={{ $json.equipment_code }}",
+            "품목명": "={{ $json.equipment_name }}",
+            "필요수량": "={{ $json.required_qty }}",
+            "할당수량": "={{ $json.allocated_qty }}",
+            "재고부족수량": "={{ $json.shortage_qty }}",
+            "상태": "={{ $json.status }}",
+            "비고": "={{ $json.shortage_qty > 0 ? '추가 발주 필요' : '' }}"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1050, 400],
+      "id": "save-equipment-001",
+      "name": "장비 현황 저장"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.alert_needed }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 400],
+      "id": "check-shortage-001",
+      "name": "재고 부족 확인"
+    },
+    {
+      "parameters": {
+        "functionCode": "// 모든 부족 품목 집계\nconst items = $input.all();\nconst shortageItems = items.filter(item => item.json.shortage_qty > 0);\n\nif (shortageItems.length === 0) {\n  return [];\n}\n\nconst projectInfo = items[0].json;\n\n// 부족 품목 리스트 생성\nconst shortageList = shortageItems.map(item => \n  `• ${item.json.equipment_name} (${item.json.equipment_code}): 필요 ${item.json.required_qty}개, 재고 ${item.json.current_qty}개, 부족 ${item.json.shortage_qty}개`\n).join('\\n');\n\nreturn [{\n  json: {\n    project_id: projectInfo.project_id,\n    project_name: projectInfo.project_name,\n    client: projectInfo.client,\n    manager_email: projectInfo.manager_email,\n    manager: projectInfo.manager,\n    shortage_count: shortageItems.length,\n    shortage_list: shortageList,\n    total_items: items.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300],
+      "id": "aggregate-shortage-001",
+      "name": "부족 품목 집계"
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@yourcompany.com",
+        "toEmail": "={{ $json.manager_email }}",
+        "subject": "⚠️ [재고 부족 알림] {{ $json.project_name }}",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; }\n    .container { max-width: 600px; margin: 0 auto; padding: 20px; }\n    .header { background-color: #ff6b6b; color: white; padding: 15px; border-radius: 5px; }\n    .content { background-color: #f8f9fa; padding: 20px; margin-top: 20px; border-radius: 5px; }\n    .item-list { background-color: white; padding: 15px; margin: 10px 0; border-left: 4px solid #ff6b6b; }\n    .footer { margin-top: 20px; font-size: 12px; color: #666; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <h2>⚠️ 재고 부족 알림</h2>\n    </div>\n    \n    <div class=\"content\">\n      <h3>프로젝트 정보</h3>\n      <p>\n        <strong>프로젝트명:</strong> {{ $json.project_name }}<br>\n        <strong>고객사:</strong> {{ $json.client }}<br>\n        <strong>프로젝트ID:</strong> {{ $json.project_id }}<br>\n        <strong>담당자:</strong> {{ $json.manager }}\n      </p>\n      \n      <h3>재고 부족 현황</h3>\n      <p><strong>부족 품목 수:</strong> {{ $json.shortage_count }}개 / 총 {{ $json.total_items }}개</p>\n      \n      <div class=\"item-list\">\n        <h4>부족 품목 상세:</h4>\n        <pre>{{ $json.shortage_list }}</pre>\n      </div>\n      \n      <p style=\"color: #ff6b6b; font-weight: bold;\">\n        📌 추가 발주 또는 대체 장비 확보가 필요합니다.\n      </p>\n    </div>\n    \n    <div class=\"footer\">\n      <p>이 메일은 자동으로 발송되었습니다.</p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "id": "send-email-001",
+      "name": "담당자 이메일 알림"
+    }
+  ],
+  "connections": {
+    "프로젝트 정보 입력": {
+      "main": [
+        [
+          {
+            "node": "장비목록 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "장비목록 파싱": {
+      "main": [
+        [
+          {
+            "node": "프로젝트 정보 저장",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "재고 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "재고 조회": {
+      "main": [
+        [
+          {
+            "node": "재고 부족 계산",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "재고 부족 계산": {
+      "main": [
+        [
+          {
+            "node": "장비 현황 저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "장비 현황 저장": {
+      "main": [
+        [
+          {
+            "node": "재고 부족 확인",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "재고 부족 확인": {
+      "main": [
+        [
+          {
+            "node": "부족 품목 집계",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "부족 품목 집계": {
+      "main": [
+        [
+          {
+            "node": "담당자 이메일 알림",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
