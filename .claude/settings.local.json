@@ -17,7 +17,13 @@
       "Bash(taskkill:*)",
       "Bash(cmd /c \"taskkill /F /PID 34044\")",
       "Bash(npx kill-port:*)",
-      "Bash(timeout /t:*)"
+      "Bash(timeout /t:*)",
+      "Bash(node -e:*)",
+      "Bash(mvnw.cmd spring-boot:run:*)",
+      "Bash(cmd /c \"cd /d d:\\\\Study\\\\CC\\\\frontend && npm run dev\")",
+      "Bash(cmd /c \"cd /d d:\\\\Study\\\\CC\\\\backend && mvnw.cmd spring-boot:run\")",
+      "Bash(curl:*)",
+      "Bash(bash:*)"
     ]
   }
 }

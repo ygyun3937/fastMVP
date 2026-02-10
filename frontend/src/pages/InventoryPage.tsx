@@ -2,10 +2,36 @@ import { useEffect, useState } from 'react';
 import { inventoryApi } from '../services/api';
 import type { Inventory } from '../types';
 
+interface InventoryForm {
+  itemCode: string;
+  itemName: string;
+  category: string;
+  unit: string;
+  currentStock: number;
+  minStock: number;
+  unitPrice: number;
+  location: string;
+}
+
+const emptyForm: InventoryForm = {
+  itemCode: '',
+  itemName: '',
+  category: '',
+  unit: 'EA',
+  currentStock: 0,
+  minStock: 0,
+  unitPrice: 0,
+  location: '',
+};
+
 export default function InventoryPage() {
   const [inventoryList, setInventoryList] = useState<Inventory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<InventoryForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadInventory();
@@ -49,6 +75,70 @@ export default function InventoryPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const openEditModal = (item: Inventory) => {
+    setEditingId(item.id);
+    setForm({
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      category: item.category || '',
+      unit: item.unit,
+      currentStock: item.currentStock,
+      minStock: item.minStock,
+      unitPrice: item.unitPrice || 0,
+      location: item.location || '',
+    });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: ['currentStock', 'minStock', 'unitPrice'].includes(name)
+        ? Number(value)
+        : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.itemCode.trim() || !form.itemName.trim()) {
+      alert('품목코드와 품목명은 필수입니다.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      if (editingId) {
+        await inventoryApi.update(editingId, form);
+        alert('수정되었습니다.');
+      } else {
+        await inventoryApi.create(form);
+        alert('등록되었습니다.');
+      }
+      closeModal();
+      loadInventory();
+    } catch (error) {
+      console.error('저장 실패:', error);
+      alert('저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">로딩 중...</div>;
   }
@@ -69,7 +159,7 @@ export default function InventoryPage() {
               placeholder="품목코드 또는 품목명으로 검색..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               style={{ maxWidth: '400px' }}
             />
             <button onClick={handleSearch} className="btn btn-secondary">
@@ -79,7 +169,7 @@ export default function InventoryPage() {
               전체보기
             </button>
           </div>
-          <button className="btn btn-primary" onClick={() => alert('재고 등록 모달 (구현 예정)')}>
+          <button className="btn btn-primary" onClick={openCreateModal}>
             + 재고 등록
           </button>
         </div>
@@ -132,7 +222,7 @@ export default function InventoryPage() {
                     <button
                       className="btn btn-secondary"
                       style={{ marginRight: '0.5rem', padding: '0.25rem 0.75rem' }}
-                      onClick={() => alert(`수정 기능 (ID: ${item.id})`)}
+                      onClick={() => openEditModal(item)}
                     >
                       수정
                     </button>
@@ -150,6 +240,128 @@ export default function InventoryPage() {
           </table>
         )}
       </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                {editingId ? '재고 수정' : '재고 등록'}
+              </h2>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">품목코드 *</label>
+                    <input
+                      type="text"
+                      name="itemCode"
+                      className="form-input"
+                      value={form.itemCode}
+                      onChange={handleFormChange}
+                      placeholder="예: ITM-001"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">품목명 *</label>
+                    <input
+                      type="text"
+                      name="itemName"
+                      className="form-input"
+                      value={form.itemName}
+                      onChange={handleFormChange}
+                      placeholder="예: 볼트 M10"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">카테고리</label>
+                    <input
+                      type="text"
+                      name="category"
+                      className="form-input"
+                      value={form.category}
+                      onChange={handleFormChange}
+                      placeholder="예: 전자부품"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">단위</label>
+                    <select
+                      name="unit"
+                      className="form-select"
+                      value={form.unit}
+                      onChange={handleFormChange}
+                    >
+                      <option value="EA">EA (개)</option>
+                      <option value="SET">SET (세트)</option>
+                      <option value="BOX">BOX (박스)</option>
+                      <option value="KG">KG (킬로그램)</option>
+                      <option value="M">M (미터)</option>
+                      <option value="L">L (리터)</option>
+                      <option value="ROLL">ROLL (롤)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">현재 재고</label>
+                    <input
+                      type="number"
+                      name="currentStock"
+                      className="form-input"
+                      value={form.currentStock}
+                      onChange={handleFormChange}
+                      min="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">최소 재고</label>
+                    <input
+                      type="number"
+                      name="minStock"
+                      className="form-input"
+                      value={form.minStock}
+                      onChange={handleFormChange}
+                      min="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">단가 (원)</label>
+                    <input
+                      type="number"
+                      name="unitPrice"
+                      className="form-input"
+                      value={form.unitPrice}
+                      onChange={handleFormChange}
+                      min="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">보관위치</label>
+                    <input
+                      type="text"
+                      name="location"
+                      className="form-input"
+                      value={form.location}
+                      onChange={handleFormChange}
+                      placeholder="예: A동 2층 선반3"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                  취소
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? '저장 중...' : (editingId ? '수정' : '등록')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
