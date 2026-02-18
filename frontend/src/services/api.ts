@@ -11,7 +11,7 @@ import type {
   TransactionHistoryReport
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'http://localhost:9090/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -83,6 +83,12 @@ export const reportApi = {
   getInventoryStatus: () => apiClient.get<InventoryStatusReport>('/reports/inventory-status'),
   getProjectSummary: () => apiClient.get<ProjectSummaryReport>('/reports/project-summary'),
   getTransactionHistory: () => apiClient.get<TransactionHistoryReport>('/reports/transaction-history'),
+};
+
+// Email API
+export const emailApi = {
+  sendReport: (to: string, reportType: string) =>
+    apiClient.post<{ message: string }>('/email/send-report', { to, reportType }),
 };
 
 export default apiClient;

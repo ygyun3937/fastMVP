@@ -23,7 +23,11 @@
       "Bash(cmd /c \"cd /d d:\\\\Study\\\\CC\\\\frontend && npm run dev\")",
       "Bash(cmd /c \"cd /d d:\\\\Study\\\\CC\\\\backend && mvnw.cmd spring-boot:run\")",
       "Bash(curl:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(cmd /c:*)",
+      "Bash(dir:*)",
+      "Bash(\"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\":*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

@@ -1,12 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projectApi } from '../services/api';
-import type { Project } from '../types';
+import type { Project, ProjectStatus } from '../types';
 import { PROJECT_STATUS_LABELS } from '../types';
+
+interface ProjectForm {
+  projectCode: string;
+  projectName: string;
+  client: string;
+  status: ProjectStatus;
+  startDate: string;
+  endDate: string;
+  description: string;
+}
+
+const emptyForm: ProjectForm = {
+  projectCode: '',
+  projectName: '',
+  client: '',
+  status: 'PENDING',
+  startDate: '',
+  endDate: '',
+  description: '',
+};
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<ProjectForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -37,6 +61,64 @@ export default function ProjectsPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const openEditModal = (project: Project) => {
+    setEditingId(project.id);
+    setForm({
+      projectCode: project.projectCode,
+      projectName: project.projectName,
+      client: project.client || '',
+      status: project.status,
+      startDate: project.startDate || '',
+      endDate: project.endDate || '',
+      description: project.description || '',
+    });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.projectCode.trim() || !form.projectName.trim()) {
+      alert('프로젝트 코드와 프로젝트명은 필수입니다.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      if (editingId) {
+        await projectApi.update(editingId, form);
+        alert('수정되었습니다.');
+      } else {
+        await projectApi.create(form);
+        alert('등록되었습니다.');
+      }
+      closeModal();
+      loadProjects();
+    } catch (error) {
+      console.error('저장 실패:', error);
+      alert('저장에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">로딩 중...</div>;
   }
@@ -51,7 +133,7 @@ export default function ProjectsPage() {
       <div className="card">
         <div className="card-header">
           <h2 className="card-title">프로젝트 목록</h2>
-          <button className="btn btn-primary" onClick={() => alert('프로젝트 등록 모달 (구현 예정)')}>
+          <button className="btn btn-primary" onClick={openCreateModal}>
             + 프로젝트 등록
           </button>
         </div>
@@ -105,6 +187,13 @@ export default function ProjectsPage() {
                       상세
                     </Link>
                     <button
+                      className="btn btn-secondary"
+                      style={{ marginRight: '0.5rem', padding: '0.25rem 0.75rem' }}
+                      onClick={() => openEditModal(project)}
+                    >
+                      수정
+                    </button>
+                    <button
                       className="btn btn-danger"
                       style={{ padding: '0.25rem 0.75rem' }}
                       onClick={() => handleDelete(project.id)}
@@ -118,6 +207,113 @@ export default function ProjectsPage() {
           </table>
         )}
       </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                {editingId ? '프로젝트 수정' : '프로젝트 등록'}
+              </h2>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">프로젝트 코드 *</label>
+                    <input
+                      type="text"
+                      name="projectCode"
+                      className="form-input"
+                      value={form.projectCode}
+                      onChange={handleFormChange}
+                      placeholder="예: PRJ-001"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">프로젝트명 *</label>
+                    <input
+                      type="text"
+                      name="projectName"
+                      className="form-input"
+                      value={form.projectName}
+                      onChange={handleFormChange}
+                      placeholder="예: OO빌딩 설비공사"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">고객사</label>
+                    <input
+                      type="text"
+                      name="client"
+                      className="form-input"
+                      value={form.client}
+                      onChange={handleFormChange}
+                      placeholder="예: (주)OO건설"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">상태</label>
+                    <select
+                      name="status"
+                      className="form-select"
+                      value={form.status}
+                      onChange={handleFormChange}
+                    >
+                      <option value="PENDING">대기</option>
+                      <option value="IN_PROGRESS">진행중</option>
+                      <option value="COMPLETED">완료</option>
+                      <option value="CANCELLED">취소</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">시작일</label>
+                    <input
+                      type="date"
+                      name="startDate"
+                      className="form-input"
+                      value={form.startDate}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">종료일</label>
+                    <input
+                      type="date"
+                      name="endDate"
+                      className="form-input"
+                      value={form.endDate}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginTop: '1rem' }}>
+                  <label className="form-label">설명</label>
+                  <textarea
+                    name="description"
+                    className="form-input"
+                    value={form.description}
+                    onChange={handleFormChange}
+                    placeholder="프로젝트 설명을 입력하세요"
+                    rows={3}
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                  취소
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? '저장 중...' : (editingId ? '수정' : '등록')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

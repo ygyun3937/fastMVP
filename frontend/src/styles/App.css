@@ -441,6 +441,26 @@ body {
   }
 }
 
+/* 인쇄 스타일 */
+@media print {
+  .header, .sidebar, .no-print, .modal-overlay {
+    display: none !important;
+  }
+  .main-container {
+    display: block !important;
+  }
+  .content {
+    padding: 0 !important;
+  }
+  .card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  body {
+    background: white !important;
+  }
+}
+
 /* 작은 모바일 (480px 이하) */
 @media (max-width: 480px) {
   .page-title {

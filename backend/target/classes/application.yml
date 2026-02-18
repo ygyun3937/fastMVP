@@ -3,22 +3,11 @@ spring:
     name: inventory-management
 
   datasource:
-    # H2 Database (인메모리 DB - MySQL 없이 즉시 테스트 가능)
-    url: jdbc:h2:mem:inventory_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-    # MySQL 설정 (MySQL 설치 시 사용)
-    # url: jdbc:mysql://localhost:3306/inventory_db?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul
-    # username: root
-    # password: 1234
-    # driver-class-name: com.mysql.cj.jdbc.Driver
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    # MySQL 설정
+    url: jdbc:mysql://localhost:3306/inventory_db?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
     init:
@@ -31,9 +20,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
-        # dialect: org.hibernate.dialect.MySQLDialect  # MySQL 사용 시
+        dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
+
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
 
   jackson:
     serialization:
@@ -41,7 +35,7 @@ spring:
     time-zone: Asia/Seoul
 
 server:
-  port: 8080
+  port: 9090
   servlet:
     context-path: /api
 
